@@ -634,7 +634,7 @@ function typeOptions(emp){
 /* การ์ดผู้ดูแล: ลิงก์แดชบอร์ดสรุปยอดประจำวัน (สาธารณะ) ที่หน้ารายงานสรุปรายวัน */
 async function pubAdminCard(box){
   const draw=(st)=>{
-    const url=location.origin+'/public.html?k='+st.key, embed='<iframe src="'+url+'&embed=1" width="100%" height="900" style="border:0" loading="lazy" title="สรุปยอดกำลังพลประจำวัน"></iframe>';
+    const url=location.origin+location.pathname.replace(/[^/]*$/,'')+'public.html?k='+st.key, embed='<iframe src="'+url+'&embed=1" width="100%" height="900" style="border:0" loading="lazy" title="สรุปยอดกำลังพลประจำวัน"></iframe>';
     const sn=st.snapshot;
     box.innerHTML=`<h3>ลิงก์แดชบอร์ดสรุปยอดประจำวัน (สาธารณะ)</h3>
       <div class="muted" style="margin:-4px 0 10px">หน้าอ่านอย่างเดียวสำหรับแปะบนเว็บไซต์ แสดงยอดกำลังพลของวันนี้ที่สรุปไว้ทุกเช้าราว 06:00 น. ไม่ต้องเข้าสู่ระบบ</div>
