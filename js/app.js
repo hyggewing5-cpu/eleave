@@ -748,6 +748,58 @@ async function pubAdminCard(box){
   };
   try{ draw(await api('getPublicAdmin')); }catch(e){ box.innerHTML='<div class="info bad">'+esc(e.message)+'</div>'; }
 }
+/* การ์ดผู้ดูแล: ส่งสรุปรายชื่อจำหน่ายประจำวันเข้ากลุ่ม Telegram (หน้ารายงานสรุปรายวัน) */
+async function tgAdminCard(box){
+  const TYPE_TH={group:'กลุ่ม',supergroup:'กลุ่ม',channel:'ช่อง',private:'แชทส่วนตัว'};
+  const dateLabel=()=>{ const s=S.sum||{}; return s.mode==='day'&&s.date?'วันที่ '+fd(s.date):'วันนี้'; };
+  const draw=(st)=>{
+    const hours=Array.from({length:24},(_,h)=>`<option value="${h}" ${h===st.hour?'selected':''}>${String(h).padStart(2,'0')}:00 น.</option>`).join('');
+    const last=st.last;
+    box.innerHTML=`<h3>ส่งสรุปรายชื่อจำหน่ายเข้ากลุ่ม Telegram</h3>
+      <div class="muted" style="margin:-4px 0 10px">ส่งรายชื่อผู้ไม่อยู่ปฏิบัติงานของวัน พร้อมประเภทการลา ช่วงวันที่ และจำนวนวัน เข้ากลุ่ม Telegram ทุกเช้าอัตโนมัติ หรือกดส่งทันที (นับเฉพาะรายการที่อนุมัติแล้ว ไม่ส่งเบอร์ติดต่อ)</div>
+      <div class="form">
+        <div class="full"><label for="tg_token">Bot Token <small class="muted">(สร้างบอทกับ @BotFather)</small></label>
+          <input id="tg_token" type="password" autocomplete="off" placeholder="${st.tokenSet?'ตั้งค่าไว้แล้ว — เว้นว่างเพื่อใช้ค่าเดิม':'เช่น 123456789:AAxxxxxxxxxxxxxxxxxxxx'}"></div>
+        <div class="full"><label for="tg_chat">กลุ่มปลายทาง (chat_id)</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="tg_chat" value="${esc(st.chatId||'')}" placeholder="เช่น -1001234567890" style="flex:1;min-width:200px"><button type="button" class="sm sec" id="tg_find">ค้นหากลุ่ม</button></div>
+          <div id="tg_found" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <small class="muted">วิธีหา: เพิ่มบอทเข้ากลุ่ม → พิมพ์ข้อความ <b>/start@ชื่อบอท</b> ในกลุ่มหนึ่งครั้ง → กด “ค้นหากลุ่ม” แล้วเลือกกลุ่มที่ต้องการ</small></div>
+        <div class="full" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="tg_on" style="width:auto" ${st.enabled?'checked':''}> <b>ส่งอัตโนมัติทุกเช้าเวลา</b></label>
+          <select id="tg_hour" style="width:auto;min-width:120px" aria-label="เวลาที่ส่ง">${hours}</select></div>
+        <label class="full" style="display:flex;gap:8px;align-items:flex-start;margin:0"><input type="checkbox" id="tg_reason" style="width:auto;margin-top:4px" ${st.reason?'checked':''}><span>แสดงเหตุผลการลาในข้อความ<br><small class="muted">ค่าเริ่มต้น = ปิด เหตุผล (เช่น ลาป่วย) เป็นข้อมูลส่วนบุคคล ควรเปิดเมื่อสมาชิกกลุ่มมีสิทธิ์รับทราบเท่านั้น</small></span></label>
+        <label class="full" style="display:flex;gap:8px;align-items:flex-start;margin:0"><input type="checkbox" id="tg_off" style="width:auto;margin-top:4px" ${st.offdays?'checked':''}><span>ส่งแม้เป็นวันเสาร์-อาทิตย์/วันหยุด<br><small class="muted">ค่าเริ่มต้น = ปิด (ข้ามวันหยุด)</small></span></label>
+      </div>
+      <div class="muted" style="font-size:13px;margin:10px 0">บอท: ${st.tokenSet?'<span class="pill ok">ตั้งค่าแล้ว</span>':'<span class="pill warn">ยังไม่ได้ตั้งค่า</span>'}
+        · ตัวตั้งเวลา: ${st.trigger===true?'<span class="pill ok">ติดตั้งแล้ว</span>':st.enabled?(st.trigger===false?'<span class="pill warn">ยังไม่ได้ติดตั้ง</span> กดบันทึกอีกครั้ง':'<span class="muted">ตรวจสอบไม่ได้ (ต้อง Deploy appsscript.json ที่มีสิทธิ์ scriptapp)</span>'):'<span class="pill">ปิดอยู่</span>'}
+        <br>ส่งล่าสุด: ${last?`<span class="pill ${last.ok?'ok':'bad'}">${last.ok?'สำเร็จ':'ไม่สำเร็จ'}</span> ${esc(last.time)} · ${esc(last.msg)}`:'<span class="muted">ยังไม่เคยส่ง</span>'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sm" id="tg_save">บันทึกการตั้งค่า</button><button type="button" class="sm sec" id="tg_send">ส่งสรุป${esc(dateLabel())} เข้ากลุ่มทันที</button></div>`;
+    const collect=()=>({token:$('#tg_token').value.trim(),chatId:$('#tg_chat').value.trim(),enabled:$('#tg_on').checked,hour:Number($('#tg_hour').value),reason:$('#tg_reason').checked,offdays:$('#tg_off').checked});
+    const doSave=async(b)=>{ btnBusy(b,true); try{ const s2=await api('saveTelegramAdmin',collect()); draw(s2); return true; }catch(e){ toast(e.message,true); return false; }finally{ btnBusy(b,false); } };
+    $('#tg_save').onclick=async e=>{ if(await doSave(e.target)) toast('บันทึกการตั้งค่า Telegram แล้ว'); };
+    $('#tg_find').onclick=async e=>{
+      btnBusy(e.target,true); const out=$('#tg_found'); out.innerHTML='<span class="muted">กำลังค้นหา…</span>';
+      try{
+        const list=await api('findTelegramChats',{token:$('#tg_token').value.trim()});
+        out.innerHTML=list.length?list.map(c=>`<button type="button" class="sm sec" data-id="${esc(c.id)}">${esc(c.title)} · ${esc(TYPE_TH[c.type]||c.type)} · ${esc(c.id)}</button>`).join(''):'<span class="muted">ไม่พบ — เพิ่มบอทเข้ากลุ่ม แล้วพิมพ์ /start@ชื่อบอท ในกลุ่มก่อน จากนั้นกดค้นหาอีกครั้ง</span>';
+        out.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{ $('#tg_chat').value=b.dataset.id; out.querySelectorAll('[data-id]').forEach(x=>x.classList.toggle('on',x===b)); });
+      }catch(err){ out.innerHTML=''; toast(err.message,true); }
+      btnBusy(e.target,false);
+    };
+    $('#tg_send').onclick=async e=>{
+      if(!confirm('ส่งสรุปรายชื่อจำหน่าย'+dateLabel()+' เข้ากลุ่ม Telegram ตอนนี้?')) return;
+      btnBusy(e.target,true);
+      try{
+        if(!(await doSave(null))) return;
+        const s=S.sum||{}, r=await api('sendTelegramReport',{date:s.mode==='day'?s.date:''});
+        draw(r.state); toast('ส่งเข้ากลุ่ม Telegram แล้ว ('+r.sent+' ข้อความ)');
+      }catch(err){ toast(err.message,true); try{ draw(await api('getTelegramAdmin')); }catch(x){} }
+      finally{ btnBusy($('#tg_send'),false); }
+    };
+  };
+  try{ draw(await api('getTelegramAdmin')); }catch(e){ box.innerHTML='<div class="info bad">'+esc(e.message)+'</div>'; }
+}
+
 /* การ์ดสรุปกลุ่มพิเศษ ใช้ในรายงานสรุป (r.special = [{group,requests,people,days,rows}]) */
 function specialHtml(r,showRows){
   const sp=r.special||[]; if(!sp.length) return '';
@@ -1051,6 +1103,7 @@ async function pSummary(){
     </div>
     ${!isDay&&r.top.length?`<div class="card"><h3>ผู้ลามากสุด (10 อันดับ)</h3><div class="scroll"><table><thead><tr><th>#</th><th>พนักงาน</th><th>แผนก</th><th>ประเภทบุคลากร</th><th>ใบลา</th><th>วันลา</th></tr></thead><tbody>${r.top.map((t,i)=>`<tr><td>${i+1}</td><td>${esc(t.Name)}</td><td>${esc(t.Department)}</td><td>${esc(t.Category||'')}</td><td>${t.requests}</td><td>${num(t.days)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
     ${isDay&&S.isAdmin?'<div class="card noprint" id="u_pub"><div class="spin">กำลังโหลด…</div></div>':''}
+     ${isDay&&S.isAdmin?'<div class="card noprint" id="u_tg"><div class="spin">กำลังโหลด…</div></div>':''}
     ${specialHtml(r,true)}
     <div class="card" id="u_list"><h3>รายการลา${isDay?'ในวันนี้':'ในช่วงนี้'} (${r.rows.length} รายการ) <span class="muted noprint" style="font-weight:400;font-size:13px">· ติ๊กเลือกเพื่อสรุป</span></h3><div class="scroll"><table><thead><tr><th>#</th><th>พนักงาน</th><th>แผนก</th><th>ประเภทบุคลากร</th><th>ประเภท</th><th>ช่วงวันที่ลา</th><th>วันลา${isDay?'วันนี้':'ในช่วงนี้'}</th><th>เหตุผล / ติดต่อ</th><th>สถานะ</th></tr></thead><tbody>
     ${r.rows.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.Name)}<br><small class="muted">${esc(x.Position)}</small></td><td>${esc(x.Department)}</td><td>${esc(x.Category||'')}</td><td>${x.TypeID?tdot(x.TypeID,x.TypeName):''}${esc(x.TypeName)}</td>
@@ -1058,7 +1111,7 @@ async function pSummary(){
       <td>${esc(x.Reason)}${x.Contact?`<br><small class="muted">ติดต่อ: ${esc(x.Contact)}</small>`:''}</td><td>${statusPill(x.Status)}</td></tr>`).join('')||`<tr><td colspan="9" class="empty">${isDay?'ไม่มีผู้ลาในวันนี้':'ไม่มีผู้ลาในช่วงนี้'}</td></tr>`}
     </tbody></table></div></div>`;
     $('#u_body').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{ st.mode='day'; st.date=b.dataset.d; syncCtl(); load(); });
-    if($('#u_pub')) pubAdminCard($('#u_pub'));
+    if($('#u_pub')) pubAdminCard($('#u_pub')); if($('#u_tg')) tgAdminCard($('#u_tg'));
     enableSelect($('#u_list'),r.rows,'req',{file:'leave_summary_selected',title:'รายงานสรุปการจำหน่าย'+MODE_NAME[r.mode]});
   }
   /* ----- มุมมองรายปีงบประมาณ ----- */
